@@ -12,13 +12,14 @@ vnet = "7 8 9".split()
 
 
 def count_card(card):
-    if card in vneg:
+    logger.warning(f"{card}")
+    if card.rank in vneg:
         return 1
 
-    if card in vpos:
+    if card.rank in vpos:
         return -1
 
-    if card in vnet:
+    if card.rank in vnet:
         return 0
 
 
@@ -48,5 +49,5 @@ def choose(deck):
 if __name__ == "__main__":
     deck = FrenchDeck()
     logger.info(f"deck, count_card(deck[0])")
-    print(random.choice(deck))
+    print(count_card(random.choice(deck)))
 

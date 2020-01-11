@@ -23,6 +23,10 @@ def count_card(card):
         return 0
 
 
+def deck_size(cards):
+    return len(cards)
+
+
 class FrenchDeck:
     """
     the french deck class

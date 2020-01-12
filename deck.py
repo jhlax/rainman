@@ -109,10 +109,11 @@ class FrenchDeck:
 
 
 if __name__ == "__main__":
-    deck = FrenchDeck.decks()
+    deck = FrenchDeck.decks(8 * 2)
     logger.info(f"deck, count_card(deck[0])")
-    deck.shuffle(8)
-    #deck = deck.cut()
+    #deck.shuffle(8)
+    deck = deck.cut()
+    deck = deck.cut()
 
     emu = False
 
@@ -133,20 +134,31 @@ if __name__ == "__main__":
 
     else:
         card_in = input("card entrance: ")
+
         while card_in != "Z":
+
+            if card_in == '':
+                card_in = input("card entrance: ").strip().upper()
+                continue
             if card_in[0] == '-':
                 deck._cards.append(Card(rank=card_in[1:], suit="None"))
                 card_in = input("card entrance: ").strip().upper()
                 continue
+
             card = deck.pull(card_in.strip().upper())
             rcard = count_card(card)
             logger.info(f"CARD:  {card.rank}")
             logger.info(f"DELTA: {rcard}")
             logger.info(f"RUN:   {deck.running}")
+            logger.info(f"NLEFT: {len(deck)}")
             logger.success(f"TOTAL: {round(deck.total, 3)}")
+
             #logger.info(f"{card}, {rcard}, {deck}")
+
             nlefts = {k: v for k, v in map(lambda r: (r, deck.nleft(r)), deck.ranks)}
             pranks = {k: round(v * 100, 2) for k, v in map(lambda r: (r, deck.prank(r)), deck.ranks)}
+
             logger.warning(nlefts)
             logger.warning(pranks)
+
             card_in = input("card entrance: ").strip().upper()

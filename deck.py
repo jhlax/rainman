@@ -109,13 +109,13 @@ class FrenchDeck:
 
 
 if __name__ == "__main__":
-    deck = FrenchDeck.decks(8 * 2)
+    deck = FrenchDeck.decks(8)
     logger.info(f"deck, count_card(deck[0])")
-    #deck.shuffle(8)
-    deck = deck.cut()
-    deck = deck.cut()
+    deck.shuffle(8)
+    # deck = deck.cut()
+    # deck = deck.cut()
 
-    emu = False
+    emu = True
 
     if emu:
         while input("enter to hit, else quit: ") == "":
@@ -125,7 +125,8 @@ if __name__ == "__main__":
             logger.info(f"CARD:  {card.rank}")
             logger.info(f"DELTA: {rcard}")
             logger.info(f"RUN:   {deck.running}")
-            logger.success(f"TOTAL: {round(deck.total, 3)}")
+            logger.info(f"NLEFT: {len(deck)}")
+            logger.success(f"TOTAL: {round(deck.total, 1)} ({deck.total * 100 / 52:.1f}% advantage)")
             #logger.info(f"{card}, {rcard}, {deck}")
             nlefts = {k: v for k, v in map(lambda r: (r, deck.nleft(r)), deck.ranks)}
             pranks = {k: round(v * 100, 2) for k, v in map(lambda r: (r, deck.prank(r)), deck.ranks)}
@@ -151,7 +152,7 @@ if __name__ == "__main__":
             logger.info(f"DELTA: {rcard}")
             logger.info(f"RUN:   {deck.running}")
             logger.info(f"NLEFT: {len(deck)}")
-            logger.success(f"TOTAL: {round(deck.total, 3)}")
+            logger.success(f"TOTAL: {round(deck.total * 100, 1)} ({deck.total / 52:.1f})")
 
             #logger.info(f"{card}, {rcard}, {deck}")
 

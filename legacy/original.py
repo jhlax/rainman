@@ -4,7 +4,7 @@ import time
 from pprint import pprint
 
 # card namedtuple
-Card = collections.namedtuple('Card', ['rank', 'suit'])
+Card = collections.namedtuple("Card", ["rank", "suit"])
 
 
 def format_card(card):
@@ -19,9 +19,9 @@ def card_value(card):
     """
     returns its +1, 0 -1 in terms of counting
     """
-    if card.rank in '23456':
+    if card.rank in "23456":
         return 1
-    elif card.rank in '789':
+    elif card.rank in "789":
         return 0
     else:
         return -1
@@ -32,12 +32,11 @@ class FrenchDeck:
     the french deck class
     """
 
-    ranks = [str(n) for n in range(2, 11)] + list('JQKA')
-    suits = 'spades diamonds clubs hearts'.split()
+    ranks = [str(n) for n in range(2, 11)] + list("JQKA")
+    suits = "spades diamonds clubs hearts".split()
 
     def __init__(self):
-        self._cards = [Card(rank, suit) for suit in self.suits
-                       for rank in self.ranks]
+        self._cards = [Card(rank, suit) for suit in self.suits for rank in self.ranks]
 
     def __len__(self):
         return len(self._cards)
@@ -57,9 +56,7 @@ def create_stack(decks):
     returns a dict of the {rank: number} of the initial values for
     each rank
     """
-    stack = {
-        k: 0 for k in ADECK.ranks
-    }
+    stack = {k: 0 for k in ADECK.ranks}
     for card in decks:
         stack[card[0].split()[0]] += 1
     return stack
@@ -117,16 +114,16 @@ def truecount(stack, ndecks):
     """
     returns the true count spread for the stack
     """
-    negs = sum(1 * stack[v] for v in stack if v in '2 3 4 5 6'.split())
-    poss = sum(-1 * stack[v] for v in stack if v in '10 J Q K A'.split())
-    zers = sum(0 * stack[v] for v in stack if v in '7 8 9'.split())
+    negs = sum(1 * stack[v] for v in stack if v in "2 3 4 5 6".split())
+    poss = sum(-1 * stack[v] for v in stack if v in "10 J Q K A".split())
+    zers = sum(0 * stack[v] for v in stack if v in "7 8 9".split())
 
     total = sum([negs, poss, zers]) / ndecks
 
     return total
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     emu = False
     ndecks = 4
     shuffles = 4
@@ -138,15 +135,15 @@ if __name__ == '__main__':
     assert z == 0  # zero sum must be 0
     pprint(stack)  # pring the stack
 
-    run = 0.
+    run = 0.0
     idx = 0
-    #inc = input("Q to exit, else any key:")
+    # inc = input("Q to exit, else any key:")
     # if inc == 'Q':
-    #	exit(0)
-    #run += values[idx][1]
-    #stack[values[idx][0].split()[0]] -= 1
-    #print(f"{values[idx][0]:20s}: {values[idx][1]:3.0f} count for running of {run}")
-    #idx += 1
+    # 	exit(0)
+    # run += values[idx][1]
+    # stack[values[idx][0].split()[0]] -= 1
+    # print(f"{values[idx][0]:20s}: {values[idx][1]:3.0f} count for running of {run}")
+    # idx += 1
 
     """
 	live card counting
@@ -163,8 +160,7 @@ if __name__ == '__main__':
             pprint(stack)
             # print total number of cards left
             print(sum(v for k, v in stack.items()))
-            choice = [c.upper().strip()
-                      for c in input("enter values: ").split()]
+            choice = [c.upper().strip() for c in input("enter values: ").split()]
 
     """
 	emulated card counting
@@ -177,7 +173,9 @@ if __name__ == '__main__':
                 ndecks -= 1
             run += values[idx][1]
             stack[values[idx][0].split()[0]] -= 1
-            print(f"{values[idx][0]:20s}: {-values[idx][1]:3.0f} count for running of {-run:4.1f} and a true run of {-run / (ndecks + 1):4.2f} and NDECKS = {ndecks}")
+            print(
+                f"{values[idx][0]:20s}: {-values[idx][1]:3.0f} count for running of {-run:4.1f} and a true run of {-run / (ndecks + 1):4.2f} and NDECKS = {ndecks}"
+            )
             idx += 1
             inc = input("Q to exit, else any key:")
             pprint(stack)

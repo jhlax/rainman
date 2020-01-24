@@ -12,7 +12,7 @@ vnet = "7 8 9".split()
 
 
 def count_card(card):
-    #logger.warning(f"{card}")
+    # logger.warning(f"{card}")
     if card.rank in vneg:
         return -1
 
@@ -22,13 +22,14 @@ def count_card(card):
     if card.rank in vnet:
         return 0
 
+
 class FrenchDeck:
     """
     the french deck class
     """
 
-    ranks = [str(n) for n in range(2, 11)] + list('JQKA')
-    suits = 'spades diamonds clubs hearts'.split()
+    ranks = [str(n) for n in range(2, 11)] + list("JQKA")
+    suits = "spades diamonds clubs hearts".split()
 
     @classmethod
     def decks(cls, n=4):
@@ -41,8 +42,7 @@ class FrenchDeck:
         return deck
 
     def __init__(self):
-        self._cards = [Card(rank, suit) for suit in self.suits
-                       for rank in self.ranks]
+        self._cards = [Card(rank, suit) for suit in self.suits for rank in self.ranks]
 
     def __len__(self):
         return len(self._cards)
@@ -95,12 +95,14 @@ class FrenchDeck:
 
     def cut(self, by=2):
         new = FrenchDeck()
-        new._cards = self._cards[len(self._cards) // 2:]
+        new._cards = self._cards[len(self._cards) // 2 :]
         return new
 
     def pull(self, card):
         try:
-            idx = [i for i, z in enumerate(self._cards) if z.rank == card.upper().strip()][0]
+            idx = [
+                i for i, z in enumerate(self._cards) if z.rank == card.upper().strip()
+            ][0]
             return self._cards.pop(idx)
         except:
             logger.error(f"{card} not in deck")
@@ -112,10 +114,10 @@ if __name__ == "__main__":
     deck = FrenchDeck.decks(8)
     logger.info(f"deck, count_card(deck[0])")
     deck.shuffle(8)
-    # deck = deck.cut()
+    deck = deck.cut()
     # deck = deck.cut()
 
-    emu = True
+    emu = False
 
     if emu:
         while input("enter to hit, else quit: ") == "":
@@ -126,10 +128,15 @@ if __name__ == "__main__":
             logger.info(f"DELTA: {rcard}")
             logger.info(f"RUN:   {deck.running}")
             logger.info(f"NLEFT: {len(deck)}")
-            logger.success(f"TOTAL: {round(deck.total, 1)} ({deck.total * 100 / 52:.1f}% advantage)")
-            #logger.info(f"{card}, {rcard}, {deck}")
+            logger.success(
+                f"TOTAL: {round(deck.total, 1)} ({deck.total * 100 / 52:.1f}% advantage)"
+            )
+            # logger.info(f"{card}, {rcard}, {deck}")
             nlefts = {k: v for k, v in map(lambda r: (r, deck.nleft(r)), deck.ranks)}
-            pranks = {k: round(v * 100, 2) for k, v in map(lambda r: (r, deck.prank(r)), deck.ranks)}
+            pranks = {
+                k: round(v * 100, 2)
+                for k, v in map(lambda r: (r, deck.prank(r)), deck.ranks)
+            }
             logger.warning(nlefts)
             logger.warning(pranks)
 
@@ -138,10 +145,10 @@ if __name__ == "__main__":
 
         while card_in != "Z":
 
-            if card_in == '':
+            if card_in == "":
                 card_in = input("card entrance: ").strip().upper()
                 continue
-            if card_in[0] == '-':
+            if card_in[0] == "-":
                 deck._cards.append(Card(rank=card_in[1:], suit="None"))
                 card_in = input("card entrance: ").strip().upper()
                 continue
@@ -152,12 +159,17 @@ if __name__ == "__main__":
             logger.info(f"DELTA: {rcard}")
             logger.info(f"RUN:   {deck.running}")
             logger.info(f"NLEFT: {len(deck)}")
-            logger.success(f"TOTAL: {round(deck.total * 100, 1)} ({deck.total / 52:.1f})")
+            logger.success(
+                f"TOTAL: {round(deck.total, 1)} ({deck.total * 100 / 52:.1f}% advantage)"
+            )
 
-            #logger.info(f"{card}, {rcard}, {deck}")
+            # logger.info(f"{card}, {rcard}, {deck}")
 
             nlefts = {k: v for k, v in map(lambda r: (r, deck.nleft(r)), deck.ranks)}
-            pranks = {k: round(v * 100, 2) for k, v in map(lambda r: (r, deck.prank(r)), deck.ranks)}
+            pranks = {
+                k: round(v * 100, 2)
+                for k, v in map(lambda r: (r, deck.prank(r)), deck.ranks)
+            }
 
             logger.warning(nlefts)
             logger.warning(pranks)

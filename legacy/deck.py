@@ -17,7 +17,7 @@ def count_card(card):
         return -1
 
     if card.rank in vpos:
-        return +1
+        return 1
 
     if card.rank in vnet:
         return 0
@@ -107,14 +107,13 @@ class FrenchDeck:
         except:
             logger.error(f"{card} not in deck")
             return Card(rank="None", suit="None")
-            pass
 
 
 if __name__ == "__main__":
-    deck = FrenchDeck.decks(8)
+    deck = FrenchDeck.decks(6)
     logger.info(f"deck, count_card(deck[0])")
-    deck.shuffle(8)
-    deck = deck.cut()
+    deck.shuffle(6)
+    # deck = deck.cut()
     # deck = deck.cut()
 
     emu = False
@@ -141,27 +140,43 @@ if __name__ == "__main__":
             logger.warning(pranks)
 
     else:
-        card_in = input("card entrance: ")
-
-        while card_in != "Z":
-
+        card_in = ""
+        rcard = "None"
+        while card_in != "z":
+            card_in = input("card entrance: ").strip().upper()
             if card_in == "":
-                card_in = input("card entrance: ").strip().upper()
+                logger.info(f"CARD:  NONE")
+                logger.info(f"DELTA: {rcard}")
+                logger.info(f"RUN:   {deck.running}")
+                logger.info(f"NLEFT: {len(deck)}")
+                logger.success(
+                    f"TOTAL: {round(deck.total, 1)} ({deck.total * 100 / 52:.1f}% advantage)"
+                )
                 continue
             if card_in[0] == "-":
-                deck._cards.append(Card(rank=card_in[1:], suit="None"))
-                card_in = input("card entrance: ").strip().upper()
+                if len(card_in) > 1:
+                    card = Card(rank=card_in[1:], suit="None")
+                    deck._cards.append(card)
+                    logger.info(f"CARD:  REPLACED {card.rank}")
+                    logger.info(f"RUN:   {deck.running}")
+                    logger.info(f"NLEFT: {len(deck)}")
+                    logger.success(
+                        f"TOTAL: {round(deck.total, 1)} ({deck.total * 100 / 52:.1f}% advantage)"
+                    )
+                else:
+                    logger.warning("FORGOT SUIT")
                 continue
 
-            card = deck.pull(card_in.strip().upper())
-            rcard = count_card(card)
-            logger.info(f"CARD:  {card.rank}")
-            logger.info(f"DELTA: {rcard}")
-            logger.info(f"RUN:   {deck.running}")
-            logger.info(f"NLEFT: {len(deck)}")
-            logger.success(
-                f"TOTAL: {round(deck.total, 1)} ({deck.total * 100 / 52:.1f}% advantage)"
-            )
+            else:
+                card = deck.pull(card_in.strip().upper())
+                rcard = count_card(card)
+                logger.info(f"CARD:  {card.rank}")
+                logger.info(f"DELTA: {rcard}")
+                logger.info(f"RUN:   {deck.running}")
+                logger.info(f"NLEFT: {len(deck)}")
+                logger.success(
+                    f"TOTAL: {round(deck.total, 1)} ({deck.total * 100 / 52:.1f}% advantage)"
+                )
 
             # logger.info(f"{card}, {rcard}, {deck}")
 
@@ -174,4 +189,3 @@ if __name__ == "__main__":
             logger.warning(nlefts)
             logger.warning(pranks)
 
-            card_in = input("card entrance: ").strip().upper()

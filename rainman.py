@@ -44,6 +44,22 @@ class Status(Enum):
     CLOSING = 5
 
 
+class Rank(Enum):
+    TWO = 0
+    THREE = 1
+    FOUR = 2
+    FIVE = 3
+    SIX = 4
+    SEVEN = 5
+    EIGHT = 6
+    NINE = 7
+    TEN = 8
+    JACK = 9
+    QUEEN = 10
+    KING = 11
+    ACE = 12
+
+
 def change_status(s, stat):
     logger.info("Status changed to " + stat.name)
     s.set(":status", "Status." + stat.name)
@@ -82,6 +98,8 @@ def clear_session(s, flushall=False):
         s.flushdb()
 
     change_status(s, Status.NONE)
+
+    logger.success("cleared session and flushed db.")
 
     return True
 
@@ -172,7 +190,7 @@ def init_session(s, decks=None, splits=None, shuffles=None):
     left = len(shoe)
 
     s.set("::left", left)
-    s.publish(CHANNEL, f"DL:{decks},{left}")
+    s.publish(CHANNEL, f"DECK:{decks},{left}")
 
     for rank in deck.ranks:
         s.incrby("shoe:" + rank + ":", decks * 4)
@@ -218,6 +236,8 @@ def card_count(s, rank):
         s.publish(CHANNEL, f"Cn,{rank}:{count}")
         return count
 
+    return "count not available"
+
 
 def card_counts(s):
     # outputting total for each card
@@ -248,10 +268,13 @@ def run(s):
 
 
 def remove_card(s, rank, n=1):
+    """
+    remove a deck from the deck.
+    """
+
     if rank in C_ALL:
         shoe = s.decrby("shoe:" + rank + ":", n)
         left = s.decrby("::left", n)
-        print(rank, n)
         s.incrby("::run", int(card_value(rank) * n))
         s.publish(CHANNEL, f"RCn{n},{rank}:{shoe},{left}")
 
@@ -261,6 +284,9 @@ def remove_card(s, rank, n=1):
 
 
 def replace_card(s, rank, n=1):
+    """
+    put a card back into the deck.
+    """
     if rank in C_ALL:
         shoe = s.incrby("shoe:" + rank + ":", n)
         left = s.incrby("::left", n)
@@ -272,10 +298,18 @@ def replace_card(s, rank, n=1):
         s.publish(CHANNEL, f"ERR:Could not replace {rank} into shoe.")
 
 
+#
+#   Classes and important contexts
+#
+
 Card = namedtuple("Card", "rank suit value")
 
 
 class FrenchDeck:
+    """
+    Simple, functioning french deck
+    """
+
     ranks = [str(r) for r in range(2, 11)] + list("JQKA")
     suits = "hearts diamonds clubs spades".split()
 
@@ -287,29 +321,64 @@ class FrenchDeck:
         ]
 
 
+#
+#   Main function when ran
+#
+
+
+"""
+Click command-line interface for use
+"""
+
+
+import click
+
+
+@click.command()
+@click.argument("command")
+@click.argument("cards", nargs=-1)
+@click.option("--decks", "-d", type=int)
+def rainman(command, cards, decks):
+    command = command.strip().lower()
+    cards = list(map(lambda c: c.upper().strip(), cards))
+    logger.info(f"command: {command}")
+    logger.info(f"cards:   {', '.join(cards)}")
+
+    r = redis.Redis()
+
+    r.monitor()
+
+
 if __name__ == "__main__":
     logger.info("connecting to redis session.")
     session = get_redis_session()
+
+    # Check database state status
     session_status(session)
     init_session(session)
-    print(card_count(session, "K"))
-    replace_card(session, "3")
-    remove_card(session, "7")
-    shoe_length(session)
-    remove_card(session, "J")
-    print(card_count(session, "3"))
-    remove_card(session, "3")
-    remove_card(session, "3")
-    card_counts(session)
-    remove_card(session, "J")
-    replace_card(session, "J")
-    remove_card(session, "J")
-    remove_card(session, "6")
-    remove_card(session, "3")
-    remove_card(session, "J")
-    remove_card(session, "10")
-    shoe_length(session)
-    card_counts(session)
-    run(session)
-    shoe_length(session)
-    # clear_session(session)
+
+    # Testing code
+    # replace_card(session, "3")
+    # remove_card(session, "7")
+    # shoe_length(session)
+    # remove_card(session, "J")
+    # remove_card(session, "3")
+    # remove_card(session, "3")
+    # card_counts(session)
+    # remove_card(session, "J")
+    # replace_card(session, "J")
+    # remove_card(session, "J")
+    # remove_card(session, "6")
+    # remove_card(session, "3")
+    # remove_card(session, "J")
+    # remove_card(session, "10")
+    # shoe_length(session)
+    # run(session)
+    # shoe_length(session)
+    # card_counts(session)
+    try:
+        rainman()
+    finally:
+        # clear_session(session)
+        session.echo("okokok")
+        pass

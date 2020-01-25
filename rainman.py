@@ -36,12 +36,18 @@ _default_config = {
 #   Indicators
 #
 class Status(Enum):
+    """
+    Status code for the system
+    """
+
     NONE = 0
     INIT = 1
     ACTIVE = 2
     PAUSED = 3
     RESTART = 4
     CLOSING = 5
+    BETTING = 6
+    WAITING = 7
 
 
 class Rank(Enum):
@@ -213,7 +219,7 @@ def init_session(s, decks=None, splits=None, shuffles=None):
 #
 
 
-def card_value(rank):
+def card_value(rank=None):
     rank = rank.strip().upper()
 
     if rank in NEG:
@@ -230,7 +236,7 @@ def card_value(rank):
         return 0.0
 
 
-def card_count(s, rank):
+def card_count(s, rank=None):
     if rank in C_ALL:
         count = int(s.get("shoe:" + rank + ":"))
         s.publish(CHANNEL, f"Cn,{rank}:{count}")
@@ -241,11 +247,13 @@ def card_count(s, rank):
 
 def card_counts(s):
     # outputting total for each card
-    logger.info("number of cards for each rank:")
+    logger.info("Number of cards for each rank:")
 
     for card in C_ALL:
         count = int(s.get("shoe:" + card + ":"))
-        print(f"  {card:3s}: {count}")
+        total = int(s.get("::left"))
+
+        print(f"{card:3s}: {count} ({100 * count / total:.2f}%)")
 
 
 def shoe_length(s):
@@ -267,7 +275,16 @@ def run(s):
 #
 
 
-def remove_card(s, rank, n=1):
+def clean_rank(func):
+    def wrapper(*args, **kwargs):
+        kwargs["rank"] = kwargs["rank"].upper().strip()
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+@clean_rank
+def remove_card(s, rank=None, n=1):
     """
     remove a deck from the deck.
     """
@@ -277,21 +294,25 @@ def remove_card(s, rank, n=1):
         left = s.decrby("::left", n)
         s.incrby("::run", int(card_value(rank) * n))
         s.publish(CHANNEL, f"RCn{n},{rank}:{shoe},{left}")
+        logger.success(f"removed {rank} from the deck.")
 
     else:
         logger.warning(f"card {rank} does not exist.")
         s.publish(CHANNEL, f"ERR:Could not remove {rank} from shoe.")
 
 
-def replace_card(s, rank, n=1):
+@clean_rank
+def replace_card(s, rank=None, n=1):
     """
     put a card back into the deck.
     """
+
     if rank in C_ALL:
         shoe = s.incrby("shoe:" + rank + ":", n)
         left = s.incrby("::left", n)
         s.incrby("::run", int(card_value(rank) * n))
         s.publish(CHANNEL, f"ACn{n},{rank}:{shoe},{left}")
+        logger.success(f"replaced {rank} into the deck.")
 
     else:
         logger.warning(f"card {rank} does not exist.")
@@ -334,28 +355,75 @@ Click command-line interface for use
 import click
 
 
-@click.command()
-@click.argument("command")
-@click.argument("cards", nargs=-1)
-@click.option("--decks", "-d", type=int)
-def rainman(command, cards, decks):
-    command = command.strip().lower()
-    cards = list(map(lambda c: c.upper().strip(), cards))
-    logger.info(f"command: {command}")
-    logger.info(f"cards:   {', '.join(cards)}")
+@click.group()
+@click.option("--db", "-D", type=int, default=0)
+@click.option("--log", "-L", is_flag=True, default=True)
+@click.pass_context
+def rainman(ctx, db, log):
+    r = get_redis_session(db=db)
 
-    r = redis.Redis()
+    if not log:
+        logger.disable("__main__")
+        logger.disable("rainman")
 
-    r.monitor()
+    ctx.ensure_object(dict)
+
+    ctx.obj["SESSION"] = r
+    ctx.obj["DB"] = db
+
+
+class Command(Enum):
+    REMOVE = 0  # remove card(s)
+    REPLACE = 1  # replace card(s)
+    TOTAL = 2  # total number of cards left
+    RUNNING = 3  # running count
+    REAL = 4  # real count
+    DECKS = 5  # number of decks
+    FUNDS = 7  # get or set funds
+    STATS = 8  # get statistics on for the system
+    INIT = 9  # reinitialize the deck
+    BET = 10  # make a bet
+    WIN = 11  # signify a win
+    LOSS = 12  # loss
+    REPL = 13  # read, eval, prompt, loop
+
+
+@rainman.command()
+@click.argument("cards", nargs=-1, type=str)
+@click.pass_context
+def rm(ctx, cards):
+    for card in cards:
+        remove_card(ctx.obj["SESSION"], rank=card)
+
+
+@rainman.command()
+@click.argument("cards", nargs=-1, type=str)
+@click.pass_context
+def put(ctx, cards):
+    for card in cards:
+        replace_card(ctx.obj["SESSION"], rank=card)
+
+
+@rainman.command()
+@click.argument("decks", type=int, default=6)
+@click.pass_context
+def init(ctx, decks):
+    init_session(ctx.obj["SESSION"], decks)
+
+
+@rainman.command()
+@click.pass_context
+def counts(ctx):
+    card_counts(ctx.obj["SESSION"])
 
 
 if __name__ == "__main__":
-    logger.info("connecting to redis session.")
-    session = get_redis_session()
+    # logger.info("connecting to redis session.")
+    # session = get_redis_session()
 
     # Check database state status
-    session_status(session)
-    init_session(session)
+    # session_status(session)
+    # init_session(session)
 
     # Testing code
     # replace_card(session, "3")
@@ -380,5 +448,4 @@ if __name__ == "__main__":
         rainman()
     finally:
         # clear_session(session)
-        session.echo("okokok")
         pass

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import random
+import os
 import redis
 import esper
 from enum import Enum
@@ -383,7 +384,8 @@ def replace_card(s, rank=None, n=1):
     if rank in C_ALL:
         shoe = s.incrby("shoe:" + rank + ":", n)
         left = s.incrby("::left", n)
-        s.incrby("::run", int(card_value(rank) * n))
+        # s.incrby("::run", int(card_value(rank) * n))
+        s.decrby("::run", int(card_value(rank) * n))
         s.publish(CHANNEL, f"{Command.REPLACE} {rank}")
         logger.success(f"replaced {rank} into the deck.")
 
@@ -584,6 +586,45 @@ def buyin(ctx, amount):
     else:
         get_buyin(ctx.obj["SESSION"])
 
+
+@rainman.command()
+@click.pass_context
+def live(ctx):
+    i = ""
+
+    logger.disable("__main__")
+    logger.disable("rainman")
+
+    while i != "Z":
+        if i == "RR":
+            init_session(ctx.obj["SESSION"], decks=6)
+            i = ""
+            continue
+
+        i = input("Card/Command [Z to Exit]: ").upper().strip()
+        os.system("clear")
+
+        if i:
+            j = i.split()
+
+            for k in j:
+                if k[0] == "-" and len(k) != 1:
+                    replace_card(ctx.obj["SESSION"], rank=k[1:])
+
+                else:
+                    remove_card(ctx.obj["SESSION"], rank=k)
+
+        decks = decks_left(ctx.obj["SESSION"], False)
+        cards = shoe_length(ctx.obj["SESSION"])
+        realc = real_count(ctx.obj["SESSION"])
+        run = running_count(ctx.obj["SESSION"])
+        print(f"""\
+DECKS: {decks:.2f}
+CARDS: {cards}
+ REAL: {realc:.3f} ({100 * realc / cards:.2f}% adv)
+  RUN: {run}
+""")
+        card_counts(ctx.obj["SESSION"])
 
 
 if __name__ == "__main__":

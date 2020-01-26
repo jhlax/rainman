@@ -575,6 +575,15 @@ def draw(ctx, times):
         remove_card(ctx.obj["SESSION"], rank=card)
 
 
+@rainman.command()
+@click.argument("amount", nargs=-1, type=float)
+@click.pass_context
+def buyin(ctx, amount):
+    if amount:
+        set_buyin(ctx.obj["SESSION"], amount[0])
+    else:
+        get_buyin(ctx.obj["SESSION"])
+
 
 
 if __name__ == "__main__":

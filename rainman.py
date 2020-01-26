@@ -197,6 +197,7 @@ def init_session(s, decks=None, splits=None, shuffles=None):
 
     s.set("::left", left)
     s.publish(CHANNEL, f"DECK:{decks},{left}")
+    s.set("::run", 0)
 
     for rank in deck.ranks:
         s.incrby("shoe:" + rank + ":", decks * 4)
@@ -259,15 +260,58 @@ def card_counts(s):
 def shoe_length(s):
     length = int(s.get("::left"))
     logger.info(f"{length} cards left.")
-    s.publish(CHANNEL, f"Cn:{length}")
+    s.publish(CHANNEL, f"{Command.CARDS} {length}")
     return length
 
 
-def run(s):
+def running_count(s):
     running = int(s.get("::run"))
     logger.info(f"run of {running}")
-    s.publish(CHANNEL, f"RUN:{running}")
+    s.publish(CHANNEL, f"{Command.RUNNING} {running}")
     return running
+
+
+def real_count(s):
+    real = float(s.get("::run") or 0) / (float(s.get("::left")) / 52)
+    logger.info(f"real of {real}")
+    s.publish(CHANNEL, f"{Command.REAL} {real}")
+    return real
+
+
+def decks_left(s, exact=True):
+    if exact:
+        decks = float(s.get("::left")) / 52
+    else:
+        decks = int(s.get("::left")) // 52
+    logger.info(f"{decks} decks left")
+    s.publish(CHANNEL, f"{Command.DECKS} {decks}")
+    return decks
+
+
+#
+#   Fund operations
+#
+
+
+def withdraw_funds(s, amount):
+    amount = float(amount)
+    amount *= 100
+    amount = int(amount)
+
+    s.decrby("::funds", amount)
+    logger.info(f"withdrew ${amount / 100:.2f} from funds.")
+    s.publish(CHANNEL, f"{Command.FUNDS} ADD {amount / 100:.2f}")
+
+
+def add_funds(s, amount):
+    amount = float(amount)
+    amount *= 100
+    amount = int(amount)
+
+    s.incrby("::funds", amount)
+    logger.info(f"added ${amount / 100:.2f} to funds.")
+    s.publish(CHANNEL, f"{Command.FUNDS} ADD {amount / 100:.2f}")
+
 
 
 #
@@ -293,7 +337,7 @@ def remove_card(s, rank=None, n=1):
         shoe = s.decrby("shoe:" + rank + ":", n)
         left = s.decrby("::left", n)
         s.incrby("::run", int(card_value(rank) * n))
-        s.publish(CHANNEL, f"RCn{n},{rank}:{shoe},{left}")
+        s.publish(CHANNEL, f"{Command.REMOVE} {rank}")
         logger.success(f"removed {rank} from the deck.")
 
     else:
@@ -311,7 +355,7 @@ def replace_card(s, rank=None, n=1):
         shoe = s.incrby("shoe:" + rank + ":", n)
         left = s.incrby("::left", n)
         s.incrby("::run", int(card_value(rank) * n))
-        s.publish(CHANNEL, f"ACn{n},{rank}:{shoe},{left}")
+        s.publish(CHANNEL, f"{Command.REPLACE} {rank}")
         logger.success(f"replaced {rank} into the deck.")
 
     else:
@@ -375,7 +419,7 @@ def rainman(ctx, db, log):
 class Command(Enum):
     REMOVE = 0  # remove card(s)
     REPLACE = 1  # replace card(s)
-    TOTAL = 2  # total number of cards left
+    CARDS = 2  # total number of cards left
     RUNNING = 3  # running count
     REAL = 4  # real count
     DECKS = 5  # number of decks
@@ -417,33 +461,52 @@ def counts(ctx):
     card_counts(ctx.obj["SESSION"])
 
 
+@rainman.command()
+@click.pass_context
+def run(ctx):
+    running_count(ctx.obj["SESSION"])
+
+
+@rainman.command()
+@click.pass_context
+def real(ctx):
+    real_count(ctx.obj["SESSION"])
+
+
+@rainman.command()
+@click.argument("funds", type=float)
+@click.pass_context
+def dep(ctx, funds):
+    add_funds(ctx.obj["SESSION"], funds)
+
+
+@rainman.command()
+@click.argument("funds", type=float)
+@click.pass_context
+def withdraw(ctx, funds):
+    withdraw_funds(ctx.obj["SESSION"], funds)
+
+
+@rainman.command()
+@click.pass_context
+def cards(ctx):
+    shoe_length(ctx.obj["SESSION"])
+
+
+@rainman.command()
+@click.option("--exact", "-e", is_flag=True, default=True)
+@click.pass_context
+def decks(ctx, exact):
+    decks_left(ctx.obj["SESSION"], exact)
+
+
+@rainman.command()
+@click.pass_context
+def status(ctx):
+    session_status(ctx.obj["SESSION"])
+
+
 if __name__ == "__main__":
-    # logger.info("connecting to redis session.")
-    # session = get_redis_session()
-
-    # Check database state status
-    # session_status(session)
-    # init_session(session)
-
-    # Testing code
-    # replace_card(session, "3")
-    # remove_card(session, "7")
-    # shoe_length(session)
-    # remove_card(session, "J")
-    # remove_card(session, "3")
-    # remove_card(session, "3")
-    # card_counts(session)
-    # remove_card(session, "J")
-    # replace_card(session, "J")
-    # remove_card(session, "J")
-    # remove_card(session, "6")
-    # remove_card(session, "3")
-    # remove_card(session, "J")
-    # remove_card(session, "10")
-    # shoe_length(session)
-    # run(session)
-    # shoe_length(session)
-    # card_counts(session)
     try:
         rainman()
     finally:

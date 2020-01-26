@@ -2,6 +2,7 @@
 
 import random
 import os
+import time
 import redis
 import esper
 from enum import Enum
@@ -631,6 +632,38 @@ def live(ctx):
         logger.disable("rainman")
 
         card_counts(ctx.obj["SESSION"])
+
+
+@rainman.command()
+@click.pass_context
+def stream(ctx):
+
+    logger.disable("__main__")
+    logger.disable("rainman")
+
+    while True:
+        os.system("clear")
+
+        decks = decks_left(ctx.obj["SESSION"], False)
+        cards = shoe_length(ctx.obj["SESSION"])
+        realc = real_count(ctx.obj["SESSION"])
+        run = running_count(ctx.obj["SESSION"])
+
+        logger.enable("__main__")
+        logger.enable("rainman")
+
+        logger.info(f"DECKS: {decks:.2f}")
+        logger.info(f"CARDS: {cards}")
+        logger.success(f" REAL: {realc:.3f} ({100 * realc / cards:.2f}% adv)")
+        logger.info(f"  RUN: {run}")
+
+        logger.disable("__main__")
+        logger.disable("rainman")
+
+        card_counts(ctx.obj["SESSION"])
+
+        time.sleep(.8)
+
 
 
 if __name__ == "__main__":

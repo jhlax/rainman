@@ -618,12 +618,18 @@ def live(ctx):
         cards = shoe_length(ctx.obj["SESSION"])
         realc = real_count(ctx.obj["SESSION"])
         run = running_count(ctx.obj["SESSION"])
-        print(f"""\
-DECKS: {decks:.2f}
-CARDS: {cards}
- REAL: {realc:.3f} ({100 * realc / cards:.2f}% adv)
-  RUN: {run}
-""")
+
+        logger.enable("__main__")
+        logger.enable("rainman")
+
+        logger.info(f"DECKS: {decks:.2f}")
+        logger.info(f"CARDS: {cards}")
+        logger.success(f" REAL: {realc:.3f} ({100 * realc / cards:.2f}% adv)")
+        logger.info(f"  RUN: {run}")
+
+        logger.disable("__main__")
+        logger.disable("rainman")
+
         card_counts(ctx.obj["SESSION"])
 
 

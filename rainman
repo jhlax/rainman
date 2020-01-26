@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import random
 import redis
 import esper
@@ -85,7 +87,7 @@ def get_redis_session(host=None, port=None, db=None):
     port = port or _default_config["red_port"]
     db = db or _default_config["red_db"]
 
-    return redis.Redis(host=host, port=port, db=db)
+    return redis.StrictRedis(host=host, port=port, db=db, charset="utf-8", decode_responses=True)
 
 
 def clear_session(s, flushall=False):
@@ -196,11 +198,16 @@ def init_session(s, decks=None, splits=None, shuffles=None):
     left = len(shoe)
 
     s.set("::left", left)
-    s.publish(CHANNEL, f"DECK:{decks},{left}")
+    s.publish(CHANNEL, f"Command.DECKS {decks}")
     s.set("::run", 0)
 
     for rank in deck.ranks:
         s.incrby("shoe:" + rank + ":", decks * 4)
+
+    for d in range(decks):
+        for i in range(4):
+            for rank in deck.ranks:
+                s.lpush("sim:shoe:", str(rank))
 
     # outputting total for each card
     # logger.info("number of cards for each rank:")
@@ -312,6 +319,11 @@ def add_funds(s, amount):
     logger.info(f"added ${amount / 100:.2f} to funds.")
     s.publish(CHANNEL, f"{Command.FUNDS} ADD {amount / 100:.2f}")
 
+
+def get_funds(s):
+    amount = float(s.get("::funds")) / 100
+    logger.info(f"${amount:.2f} funds left")
+    return amount
 
 
 #
@@ -483,8 +495,14 @@ def dep(ctx, funds):
 @rainman.command()
 @click.argument("funds", type=float)
 @click.pass_context
-def withdraw(ctx, funds):
+def wdraw(ctx, funds):
     withdraw_funds(ctx.obj["SESSION"], funds)
+
+
+@rainman.command()
+@click.pass_context
+def funds(ctx):
+    get_funds(ctx.obj["SESSION"])
 
 
 @rainman.command()
@@ -504,6 +522,40 @@ def decks(ctx, exact):
 @click.pass_context
 def status(ctx):
     session_status(ctx.obj["SESSION"])
+
+
+@rainman.command()
+@click.argument("times", type=int, default=1)
+@click.pass_context
+def shuffle(ctx, times):
+    import random
+
+    cards = list(
+        map(
+            lambda c: Card(str(c), "None", card_value(c)),
+            ctx.obj["SESSION"].lrange("sim:shoe:", 0, -1)
+        )
+    )
+
+    shuffled = cards
+    for i in range(times):
+        shuffled = random.shuffle(cards)
+
+    ctx.obj["SESSION"].delete("sim:shoe:")
+    
+    for card in cards:
+        ctx.obj["SESSION"].lpush("sim:shoe:", card.rank)
+
+    logger.success(f"shuffled {len(cards)} cards.")
+
+
+@rainman.command()
+@click.argument("times", type=int, default=1)
+@click.pass_context
+def draw(ctx, times):
+    for d in range(times):
+        card = ctx.obj["SESSION"].rpop("sim:shoe:")
+        remove_card(ctx.obj["SESSION"], rank=card)
 
 
 if __name__ == "__main__":

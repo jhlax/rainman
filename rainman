@@ -209,6 +209,10 @@ def init_session(s, decks=None, splits=None, shuffles=None):
             for rank in deck.ranks:
                 s.lpush("sim:shoe:", str(rank))
 
+
+    s.set("::funds", 0)
+    s.set("::buyin", 500)
+
     # outputting total for each card
     # logger.info("number of cards for each rank:")
 
@@ -287,9 +291,9 @@ def real_count(s):
 
 def decks_left(s, exact=True):
     if exact:
-        decks = float(s.get("::left")) / 52
+        decks = round(float(s.get("::left")) / 52)
     else:
-        decks = int(s.get("::left")) // 52
+        decks = float(s.get("::left")) / 52
     logger.info(f"{decks} decks left")
     s.publish(CHANNEL, f"{Command.DECKS} {decks}")
     return decks
@@ -324,6 +328,19 @@ def get_funds(s):
     amount = float(s.get("::funds")) / 100
     logger.info(f"${amount:.2f} funds left")
     return amount
+
+
+def get_buyin(s):
+    amount = float(s.get("::buyin")) / 100
+    logger.info(f"Buy in is ${amount:.2f}")
+    return amount
+
+
+def set_buyin(s, buyin):
+    amount = int(buyin * 100)
+    logger.info(f"setting buy in to ${buyin:.2f}")
+    s.set("::buyin", amount)
+    return buyin
 
 
 #
@@ -556,6 +573,8 @@ def draw(ctx, times):
     for d in range(times):
         card = ctx.obj["SESSION"].rpop("sim:shoe:")
         remove_card(ctx.obj["SESSION"], rank=card)
+
+
 
 
 if __name__ == "__main__":

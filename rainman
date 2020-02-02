@@ -126,8 +126,7 @@ def session_status(s, reinit=True):
 
     if s_exists:
         # Returns a status indicator
-        result = change_status(s, Status.ACTIVE)
-        return result
+        return s.get(":status")
 
     else:
         result = change_status(s, Status.NONE)
@@ -264,38 +263,58 @@ def card_counts(s):
     logger.info("Number of cards for each rank:")
 
     for card in C_ALL:
-        count = int(s.get("shoe:" + card + ":"))
-        total = int(s.get("::left"))
+        try:
+            count = int(s.get("shoe:" + card + ":"))
+            total = int(s.get("::left"))
+        except TypeError:
+            count = 0
+            total = 0
 
-        print(f"{card:3s}: {count} ({100 * count / total:.2f}%)")
+        try:
+            print(f"{card:3s}: {count} ({100 * count / total:.2f}%)")
+        except ZeroDivisionError:
+            print(f"{card:3s}: {count} ({0}%)")
 
 
 def shoe_length(s):
-    length = int(s.get("::left"))
-    logger.info(f"{length} cards left.")
+    try:
+        length = int(s.get("::left"))
+        logger.info(f"{length} cards left.")
+    except TypeError:
+        logger.info("no cards left.")
+        return 0
     s.publish(CHANNEL, f"{Command.CARDS} {length}")
     return length
 
 
 def running_count(s):
-    running = int(s.get("::run"))
+    try:
+        running = int(s.get("::run"))
+    except TypeError:
+        running = 0
     logger.info(f"run of {running}")
     s.publish(CHANNEL, f"{Command.RUNNING} {running}")
     return running
 
 
 def real_count(s):
-    real = float(s.get("::run") or 0) / (float(s.get("::left")) / 52)
-    logger.info(f"real of {real}")
-    s.publish(CHANNEL, f"{Command.REAL} {real}")
-    return real
-
+    try:
+        real = float(s.get("::run") or 0) / (float(s.get("::left")) / 52)
+        logger.info(f"real of {real}")
+        s.publish(CHANNEL, f"{Command.REAL} {real}")
+        return real
+    except (ZeroDivisionError, TypeError):
+        logger.error(f"no cards left in the shoe.")
+        return 0
 
 def decks_left(s, exact=True):
-    if exact:
-        decks = round(float(s.get("::left")) / 52)
-    else:
-        decks = float(s.get("::left")) / 52
+    try:
+        if exact:
+            decks = round(float(s.get("::left")) / 52)
+        else:
+            decks = float(s.get("::left")) / 52
+    except TypeError:
+        return -1
     logger.info(f"{decks} decks left")
     s.publish(CHANNEL, f"{Command.DECKS} {decks}")
     return decks
@@ -352,7 +371,10 @@ def set_buyin(s, buyin):
 
 def clean_rank(func):
     def wrapper(*args, **kwargs):
-        kwargs["rank"] = kwargs["rank"].upper().strip()
+        try:
+            kwargs["rank"] = kwargs["rank"].upper().strip()
+        except AttributeError:
+            logger.error("No rank found.")
         return func(*args, **kwargs)
 
     return wrapper
@@ -370,6 +392,7 @@ def remove_card(s, rank=None, n=1):
         s.incrby("::run", int(card_value(rank) * n))
         s.publish(CHANNEL, f"{Command.REMOVE} {rank}")
         logger.success(f"removed {rank} from the deck.")
+        return rank
 
     else:
         logger.warning(f"card {rank} does not exist.")
@@ -592,6 +615,11 @@ def buyin(ctx, amount):
 @click.pass_context
 def live(ctx):
     i = ""
+    c = None
+
+
+    if c is not None:
+        print("card:", c)
 
     logger.disable("__main__")
     logger.disable("rainman")
@@ -601,6 +629,11 @@ def live(ctx):
             init_session(ctx.obj["SESSION"], decks=6)
             i = ""
             continue
+
+        if i == "D":
+            c = ctx.obj["SESSION"].rpop("sim:shoe:")
+            remove_card(ctx.obj["SESSION"], rank=c)
+
 
         i = input("Card/Command [Z to Exit]: ").upper().strip()
         os.system("clear")
@@ -613,7 +646,11 @@ def live(ctx):
                     replace_card(ctx.obj["SESSION"], rank=k[1:])
 
                 else:
-                    remove_card(ctx.obj["SESSION"], rank=k)
+                    if k in C_ALL:
+                        c = remove_card(ctx.obj["SESSION"], rank=k)
+                        ctx.obj["SESSION"].lpush(":history", c)
+                    else:
+                        print(f"{k} not a command")
 
         decks = decks_left(ctx.obj["SESSION"], False)
         cards = shoe_length(ctx.obj["SESSION"])
@@ -654,7 +691,10 @@ def stream(ctx):
 
         logger.info(f"DECKS: {decks:.2f}")
         logger.info(f"CARDS: {cards}")
-        logger.success(f" REAL: {realc:.3f} ({100 * realc / cards:.2f}% adv)")
+        try:
+            logger.success(f" REAL: {realc:.3f} ({100 * realc / cards:.2f}% adv)")
+        except ZeroDivisionError:
+            logger.error(f" REAL: 0")
         logger.info(f"  RUN: {run}")
 
         logger.disable("__main__")
@@ -662,7 +702,9 @@ def stream(ctx):
 
         card_counts(ctx.obj["SESSION"])
 
-        time.sleep(.8)
+        time.sleep(1.37137)
+
+    c = None
 
 
 

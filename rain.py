@@ -8,6 +8,21 @@ import esper
 from enum import Enum
 from loguru import logger
 from collections import namedtuple
+import uuid
+
+
+def generate_session_token(s):
+    """
+    generates a token for the redis session.
+
+    :param s: redis session
+    """
+
+    u = str(uuid.uuid4())
+
+    logger.info(f"session token:     {u}")
+
+    s.set("sys:token", u)
 
 
 #
@@ -19,7 +34,6 @@ POS = "2 3 4 5 6".split()
 C_ALL = POS + NUL + NEG
 
 CHANNEL = "rainman"
-
 
 #
 #   Default Configuration
@@ -72,7 +86,7 @@ class Rank(Enum):
 
 def change_status(s, stat):
     logger.info("Status changed to " + stat.name)
-    s.set(":status", "Status." + stat.name)
+    s.set("sys:status", "Status." + stat.name)
     s.publish(CHANNEL, "Status." + stat.name)
     return stat
 
@@ -122,11 +136,11 @@ def session_status(s, reinit=True):
 
     logger.info("checking session status.")
 
-    s_exists = bool(s.exists(":status"))  # TODO: Potential redundancy
+    s_exists = bool(s.exists("status"))  # TODO: Potential redundancy
 
     if s_exists:
         # Returns a status indicator
-        return s.get(":status")
+        return s.get("status")
 
     else:
         result = change_status(s, Status.NONE)
@@ -141,10 +155,12 @@ def init_session(s, decks=None, splits=None, shuffles=None):
     decks = decks or _default_config["decks"]
 
     s.flushdb()
-    s.set(":status", "init")
+    s.set("status", "init")
     s.publish(CHANNEL, "Status.INIT")
 
     logger.info("initializing session.")
+
+    generate_session_token(s)
 
     """
     1. create constants (reference deck, positives and negatives, etc.)
@@ -170,22 +186,22 @@ def init_session(s, decks=None, splits=None, shuffles=None):
     s.publish(CHANNEL, "calc_ranks")
 
     for rank in deck.ranks:
-        s.lpush(":ranks", rank)
+        s.lpush("sys:ranks", rank)
 
     # suits
     logger.info("storing suit information.")
     s.publish(CHANNEL, "calc_suits")
 
     for suit in deck.suits:
-        s.lpush(":suits", suit)
+        s.lpush("sys:suits", suit)
 
     # session config variables
     logger.info("setting configuration variables.")
     s.publish(CHANNEL, "set_config_vars")
 
-    s.set(":decks", _default_config["decks"])
-    s.set(":shuffles", _default_config["shuffles"])
-    s.set(":splits", _default_config["splits"])
+    s.set("decks", _default_config["decks"])
+    s.set("shuffles", _default_config["shuffles"])
+    s.set("splits", _default_config["splits"])
 
     #
     #   Initialization of real-time counting algorithm data
@@ -198,21 +214,20 @@ def init_session(s, decks=None, splits=None, shuffles=None):
     shoe = deck.cards * decks
     left = len(shoe)
 
-    s.set("::left", left)
+    s.set("left", left)
     s.publish(CHANNEL, f"Command.DECKS {decks}")
-    s.set("::run", 0)
+    s.set("run", 0)
 
     for rank in deck.ranks:
-        s.incrby("shoe:" + rank + ":", decks * 4)
+        s.incrby("shoe:" + rank, decks * 4)
 
     for d in range(decks):
         for i in range(4):
             for rank in deck.ranks:
-                s.lpush("sim:shoe:", str(rank))
+                s.lpush("sim:shoe", str(rank))
 
-
-    s.set("::funds", 0)
-    s.set("::buyin", 500)
+    s.set("funds", 0)
+    s.set("buyin", 500)
 
     # outputting total for each card
     # logger.info("number of cards for each rank:")
@@ -251,7 +266,7 @@ def card_value(rank=None):
 
 def card_count(s, rank=None):
     if rank in C_ALL:
-        count = int(s.get("shoe:" + rank + ":"))
+        count = int(s.get("shoe:" + rank))
         s.publish(CHANNEL, f"Cn,{rank}:{count}")
         return count
 
@@ -264,8 +279,8 @@ def card_counts(s):
 
     for card in C_ALL:
         try:
-            count = int(s.get("shoe:" + card + ":"))
-            total = int(s.get("::left"))
+            count = int(s.get("shoe:" + card))
+            total = int(s.get("left"))
         except TypeError:
             count = 0
             total = 0
@@ -278,7 +293,7 @@ def card_counts(s):
 
 def shoe_length(s):
     try:
-        length = int(s.get("::left"))
+        length = int(s.get("left"))
         logger.info(f"{length} cards left.")
     except TypeError:
         logger.info("no cards left.")
@@ -289,7 +304,7 @@ def shoe_length(s):
 
 def running_count(s):
     try:
-        running = int(s.get("::run"))
+        running = int(s.get("run"))
     except TypeError:
         running = 0
     logger.info(f"run of {running}")
@@ -299,7 +314,7 @@ def running_count(s):
 
 def real_count(s):
     try:
-        real = float(s.get("::run") or 0) / (float(s.get("::left")) / 52)
+        real = float(s.get("run") or 0) / (float(s.get("left")) / 52)
         logger.info(f"real of {real}")
         s.publish(CHANNEL, f"{Command.REAL} {real}")
         return real
@@ -307,12 +322,13 @@ def real_count(s):
         logger.error(f"no cards left in the shoe.")
         return 0
 
+
 def decks_left(s, exact=True):
     try:
         if exact:
-            decks = round(float(s.get("::left")) / 52)
+            decks = round(float(s.get("left")) / 52)
         else:
-            decks = float(s.get("::left")) / 52
+            decks = float(s.get("left")) / 52
     except TypeError:
         return -1
     logger.info(f"{decks} decks left")
@@ -340,19 +356,19 @@ def add_funds(s, amount):
     amount *= 100
     amount = int(amount)
 
-    s.incrby("::funds", amount)
+    s.incrby("funds", amount)
     logger.info(f"added ${amount / 100:.2f} to funds.")
     s.publish(CHANNEL, f"{Command.FUNDS} ADD {amount / 100:.2f}")
 
 
 def get_funds(s):
-    amount = float(s.get("::funds")) / 100
+    amount = float(s.get("funds")) / 100
     logger.info(f"${amount:.2f} funds left")
     return amount
 
 
 def get_buyin(s):
-    amount = float(s.get("::buyin")) / 100
+    amount = float(s.get("buyin")) / 100
     logger.info(f"Buy in is ${amount:.2f}")
     return amount
 
@@ -360,7 +376,7 @@ def get_buyin(s):
 def set_buyin(s, buyin):
     amount = int(buyin * 100)
     logger.info(f"setting buy in to ${buyin:.2f}")
-    s.set("::buyin", amount)
+    s.set("buyin", amount)
     return buyin
 
 
@@ -387,9 +403,9 @@ def remove_card(s, rank=None, n=1):
     """
 
     if rank in C_ALL:
-        shoe = s.decrby("shoe:" + rank + ":", n)
-        left = s.decrby("::left", n)
-        s.incrby("::run", int(card_value(rank) * n))
+        shoe = s.decrby("shoe:" + rank, n)
+        left = s.decrby("left", n)
+        s.incrby("run", int(card_value(rank) * n))
         s.publish(CHANNEL, f"{Command.REMOVE} {rank}")
         logger.success(f"removed {rank} from the deck.")
         return rank
@@ -406,10 +422,10 @@ def replace_card(s, rank=None, n=1):
     """
 
     if rank in C_ALL:
-        shoe = s.incrby("shoe:" + rank + ":", n)
-        left = s.incrby("::left", n)
+        shoe = s.incrby("shoe:" + rank, n)
+        left = s.incrby("left", n)
         # s.incrby("::run", int(card_value(rank) * n))
-        s.decrby("::run", int(card_value(rank) * n))
+        s.decrby("run", int(card_value(rank) * n))
         s.publish(CHANNEL, f"{Command.REPLACE} {rank}")
         logger.success(f"replaced {rank} into the deck.")
 
@@ -440,3 +456,18 @@ class FrenchDeck:
             for rank in self.ranks
         ]
 
+
+class Command(Enum):
+    REMOVE = 0  # remove card(s)
+    REPLACE = 1  # replace card(s)
+    CARDS = 2  # total number of cards left
+    RUNNING = 3  # running count
+    REAL = 4  # real count
+    DECKS = 5  # number of decks
+    FUNDS = 7  # get or set funds
+    STATS = 8  # get statistics on for the system
+    INIT = 9  # reinitialize the deck
+    BET = 10  # make a bet
+    WIN = 11  # signify a win
+    LOSS = 12  # loss
+    REPL = 13  # read, eval, prompt, loop
